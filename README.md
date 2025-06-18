@@ -1,0 +1,2 @@
+# Auto-Prospect-B2B-Leads-Bank-Insurance-Hedge-Funds-
+To build a fully automated AI-powered B2B lead generation workflow that scrapes Banks, Insurance firms, and Hedge Funds from Google Maps, enriches their contact data, summarizes company context using Perplexity, generates personalized cold emails with GPT-4o, and sends outreach via Gmail — all orchestrated with n8n and logged into Google Sheets.
