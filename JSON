@@ -1,0 +1,1388 @@
+{
+  "name": "Auto-Prospect B2B Leads: Bank | Insurance | Hedge Funds",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1700,
+        -380
+      ],
+      "id": "be7437f4-2b30-4ccb-ad03-619b7507325f",
+      "name": "Start Webhook",
+      "webhookId": ""
+    },
+    {
+      "parameters": {
+        "jsCode": "// Access data from the webhook\nconst destinations = $json[\"destinations\"];\nconst city = $json[\"city\"];\nconst country = $json[\"country\"];\nconst numBank = $json[\"numBank\"];\nconst numInsurance = $json[\"numInsurance\"];\nconst numHedgeFund = $json[\"numHedgeFund\"];\n\n// Build a new item for each destination type\nreturn destinations.map(type => {\n  // Normalize the string to avoid case/whitespace errors\n  const normalizedType = type.trim().toLowerCase();\n  let amount = 1;\n\n  if (normalizedType === \"bank\") amount = numBank;\n  else if (normalizedType === \"insurance\") amount = numInsurance;\n  else if (normalizedType === \"hedge found\") amount = numHedgeFund;\n\n  return {\n    type,          \n    city,\n    country,\n    amount\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1480,
+        -380
+      ],
+      "id": "",
+      "name": "Process Input Payload"
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1040,
+        -580
+      ],
+      "id": "798eada0-2726-4ceb-a7fb-b32c3f39d611",
+      "name": "Wait Banks",
+      "webhookId": "472e070d-dc62-49eb-a69d-88e1acb2403b"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nreturn items.map(item => {\n  return {\n    json: {\n      name: item.json.title || item.json.placeName || \"\",\n      website: item.json.website || item.json.url || \"\",\n      email: item.json.email || \"\",\n      address: item.json.address || \"\",\n      phone: item.json.phone || \"\",\n      \n    }\n  }\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -820,
+        -580
+      ],
+      "id": "bf7e2194-1b42-4bb7-a159-c5a0fdb7803b",
+      "name": "Format Bank Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  // Extrae el dominio desde el website\n  const url = item.json.website || \"\";\n  let domain = \"\";\n  try {\n    domain = new URL(url).hostname.replace('www.', '');\n  } catch (e) {\n    // fallback si falla el parseo\n    domain = url.replace(/^https?:\\/\\//, '').split('/')[0].replace('www.', '');\n  }\n  return {\n    json: {\n      ...item.json,\n      domain: domain\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        -580
+      ],
+      "id": "c3855bd3-fd25-42e6-a243-b39a914154ce",
+      "name": "Prepare Emails Bank"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": " https://api.anymailfinder.com/v5.0/search/company.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer "
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"domain\": \"{{ $json.domain }}\"\n}\n\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        -580
+      ],
+      "id": "826d201b-9f18-433a-ad97-5b1ac470f482",
+      "name": "Anymailfinder → Find Emails - Bank"
+    },
+    {
+      "parameters": {
+        "model": "sonar",
+        "messages": {
+          "message": [
+            {
+              "content": "=Give me a short summary about the company associated with the domain \"{{ $json[\"input\"][\"domain\"] }}\". List the type of company, country, and any notable recent news. Also, write a first cold outreach email template to one of these emails: {{ $json[\"results\"][\"emails\"].join(\", \") }}.\n"
+            }
+          ]
+        },
+        "options": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.perplexity",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        -580
+      ],
+      "id": "c3f18c84-1435-4b54-9479-5459991f724e",
+      "name": "Generate Context - Bank",
+      "credentials": {
+        "perplexityApi": {
+          "id": "",
+          "name": "Perplexity account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert B2B sales copywriter. Write a concise, personalized cold email for partnership outreach to the company described below.\n\nInstructions:\n- Use the contact name provided as {{ $json.search_results[1].title }}\n- Insert our value proposition in Finance and Crypto.\n- Reference something impressive or recent about the company (from the context).\n- Keep it under 120 words.\n- End with a clear call to action for a call/meeting.\n- Sign as Alvaro, Astral Automation.\n\nCompany context:\n\"{{ $json.choices[0].message.content }}\"\"\n\n\n\nContact name: {{ $json.search_results[1].title }}\n\n\nWrite the email in English. Use the variables as shown.\n\n\n\n\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        60,
+        -580
+      ],
+      "id": "1c8d4382-96a5-4024-a8e9-9dd7850ab911",
+      "name": "Generate Email Copy - Bank",
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emailText = $json.message.content;\n\n// Sacar el Subject (puede estar en la primera línea)\nconst subjectMatch = emailText.match(/Subject:(.*)\\n/);\nconst subject = subjectMatch ? subjectMatch[1].trim() : '';\n\n// El mensaje es todo lo que viene después del \"Subject: ...\" y salto de línea\nconst message = emailText.replace(/Subject:.*\\n/, '').trim();\n\nreturn {\n  json: {\n    subject,\n    message\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        436,
+        -580
+      ],
+      "id": "884c8ede-5c84-4718-8020-d2e0699252b3",
+      "name": "Extract Email Components - Bank"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.message;\n\n// Si el mensaje original no tiene saltos dobles, los agregamos:\n// - Después de \"Dear ...\", y antes de \"Best regards,\"\nlet formatted = raw\n  .replace(/(Dear [^\\n]+,)/, '$1\\n\\n')  // después del saludo\n  .replace(/([^\\n])(\\s*Best regards,)/, '$1\\n\\n$2') // antes del cierre\n\n// O para HTML (reemplaza \\n por <br> también)\nformatted = formatted.replace(/\\n/g, '<br>');\n\nreturn {\n  json: {\n    message: formatted\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        -580
+      ],
+      "id": "69ef4d4c-44a6-4320-945e-3ec4aa43a105",
+      "name": "Convert Email to HTML - Bank"
+    },
+    {
+      "parameters": {
+        "subject": "={{ $('Extract Email Components - Bank').item.json.subject }}",
+        "message": "={{ $json.message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        876,
+        -580
+      ],
+      "id": "0d1c2ace-02be-4b6f-8e18-c5cf09fd4dc3",
+      "name": "Send Email - Bank",
+      "webhookId": "60e7358e-6849-47d8-95d3-8eb753962c9f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "=",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Bank",
+          "cachedResultUrl": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Message": "={{ $('Convert Email to HTML - Bank').item.json.message }}",
+            "Subject": "={{ $('Extract Email Components - Bank').item.json.subject }}",
+            "Status": "={{ $json.labelIds[0] }}",
+            "row_number": "2"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Website",
+              "displayName": "Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Message",
+              "displayName": "Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1096,
+        -580
+      ],
+      "id": "4cc32ac4-5130-4b7c-b3dc-fb9e09fd1e8b",
+      "name": "Insert to Google Sheet - Bank",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"searchStringsArray\": [\"{{$json[\"type\"]}}\"],\n  \"locationQuery\": \"{{$json[\"city\"]}}, {{$json[\"country\"]}}\",\n  \"maxCrawledPlacesPerSearch\": {{$json[\"amount\"]}}\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1260,
+        -580
+      ],
+      "id": "6360e9eb-dd50-4b34-873c-5e0cdc6d8618",
+      "name": "Scrape Banks – Apify Maps → Scrape Bank Leads"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"searchStringsArray\":[\"insurance\"],\n  \"locationQuery\": \"{{ $json['city'] }}, {{ $json['country'] }}\",\n  \"maxCrawledPlacesPerSearch\":{{ $json.amount }} \n}\n\n  ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1260,
+        -380
+      ],
+      "id": "7a3cb365-828d-454d-b5b0-0737da562671",
+      "name": "Scrape Insurance Companies – Apify Maps → Scrape Insurance Leads"
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1040,
+        -380
+      ],
+      "id": "72d0c6b2-740e-4ffb-a927-ab83dd877492",
+      "name": "Wait Insurance",
+      "webhookId": "4fef4d2c-c121-4a4f-bf5d-6ab6ded7078e"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  return {\n    json: {\n      name: item.json.title || item.json.placeName || \"\",\n      website: item.json.website || item.json.url || \"\",\n      email: item.json.email || \"\",\n      address: item.json.address || \"\",\n      phone: item.json.phone || \"\",\n      \n    }\n  }\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -820,
+        -380
+      ],
+      "id": "54211b93-6be8-4a05-b610-195a70b708e0",
+      "name": "Format Insurance Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  // Extrae el dominio desde el website\n  const url = item.json.website || \"\";\n  let domain = \"\";\n  try {\n    domain = new URL(url).hostname.replace('www.', '');\n  } catch (e) {\n    // fallback si falla el parseo\n    domain = url.replace(/^https?:\\/\\//, '').split('/')[0].replace('www.', '');\n  }\n  return {\n    json: {\n      ...item.json,\n      domain: domain\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        -380
+      ],
+      "id": "ca3c3131-3f2e-4f3f-96a7-f6ac80b7448b",
+      "name": "Prepare Emails Insurance"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": " https://api.anymailfinder.com/v5.0/search/company.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer "
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"domain\": \"{{ $json.domain }}\"\n}\n\n\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        -380
+      ],
+      "id": "b22a15da-faca-42b9-a007-e9931ef52ac1",
+      "name": "Anymailfinder → Find Emails - Insurance"
+    },
+    {
+      "parameters": {
+        "model": "sonar",
+        "messages": {
+          "message": [
+            {
+              "content": "=Give me a short summary about the company associated with the domain \"{{ $json[\"input\"][\"domain\"] }}\". List the type of company, country, and any notable recent news. Also, write a first cold outreach email template to one of these emails: {{ $json[\"results\"][\"emails\"].join(\", \") }}.\n"
+            }
+          ]
+        },
+        "options": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.perplexity",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        -380
+      ],
+      "id": "b88f076c-7147-4a68-bbfc-b34af593415e",
+      "name": "Generate Context - Insurance",
+      "credentials": {
+        "perplexityApi": {
+          "id": "",
+          "name": "Perplexity account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert B2B sales copywriter. Write a concise, personalized cold email for partnership outreach to the company described below.\n\nInstructions:\n- Use the contact name provided as {{ $('Scrape Insurance Companies – Apify Maps → Scrape Insurance Leads').item.json.title }}\n- Insert our value proposition in Finance and Crypto.\n- Reference something impressive or recent about the company (from the context).\n- Keep it under 120 words.\n- End with a clear call to action for a call/meeting.\n- Sign as Alvaro, Astral Automation.\n\nCompany context:\n\"{{ $json.choices[0].message.content }}\n\n\n\nContact name:{{ $('Wait Insurance').item.json.title }}\n\n\nWrite the email in English. Use the variables as shown.\n\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        60,
+        -380
+      ],
+      "id": "a9bb097b-9d0f-4dc6-a002-3f3e9733fdb5",
+      "name": "Generate Email Copy - Insurance",
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emailText = $json.message.content;\n\n// Sacar el Subject (puede estar en la primera línea)\nconst subjectMatch = emailText.match(/Subject:(.*)\\n/);\nconst subject = subjectMatch ? subjectMatch[1].trim() : '';\n\n// El mensaje es todo lo que viene después del \"Subject: ...\" y salto de línea\nconst message = emailText.replace(/Subject:.*\\n/, '').trim();\n\nreturn {\n  json: {\n    subject,\n    message\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        436,
+        -380
+      ],
+      "id": "395114ca-0cc2-4dad-9c95-744568a17970",
+      "name": "Extract Email Components - Insurance"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.message;\n\n// Si el mensaje original no tiene saltos dobles, los agregamos:\n// - Después de \"Dear ...\", y antes de \"Best regards,\"\nlet formatted = raw\n  .replace(/(Dear [^\\n]+,)/, '$1\\n\\n')  // después del saludo\n  .replace(/([^\\n])(\\s*Best regards,)/, '$1\\n\\n$2') // antes del cierre\n\n// O para HTML (reemplaza \\n por <br> también)\nformatted = formatted.replace(/\\n/g, '<br>');\n\nreturn {\n  json: {\n    message: formatted\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        -380
+      ],
+      "id": "5ec94051-6f7e-43e1-b3d1-1bf16fcdb53c",
+      "name": "Convert Email to HTML - Insurance"
+    },
+    {
+      "parameters": {
+        "subject": "={{ $('Extract Email Components - Insurance').item.json.subject }}",
+        "message": "={{ $json.message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        876,
+        -380
+      ],
+      "id": "ef58dfb6-0479-49e8-be64-8bd40169d9af",
+      "name": "Send Email - Insurance",
+      "webhookId": "d4708c96-475d-44fd-a05b-d1dfbb7d0f62",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "=",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2118576633,
+          "mode": "list",
+          "cachedResultName": "Insurance",
+          "cachedResultUrl": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Message": "={{ $('Convert Email to HTML - Bank').item.json.message }}",
+            "Subject": "={{ $('Extract Email Components - Bank').item.json.subject }}",
+            "Status": "={{ $json.labelIds[0] }}",
+            "row_number": "2"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Website",
+              "displayName": "Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Message",
+              "displayName": "Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1096,
+        -380
+      ],
+      "id": "4727b639-36e8-4b8d-9434-8350567718b1",
+      "name": "Insert to Google Sheet - Insurance",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"searchStringsArray\":[\"hedge found\"],\n  \"locationQuery\": \"{{ $json['city'] }}, {{ $json['country'] }}\",\n  \"maxCrawledPlacesPerSearch\":{{ $json.amount }} \n}\n\n  ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1260,
+        -180
+      ],
+      "id": "5a5de018-bbf4-4b68-988e-920988f18d69",
+      "name": "Scrape Activities – Apify Maps → Scrape Hedge Fund Leads"
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1040,
+        -180
+      ],
+      "id": "0e455621-519f-4363-8853-42c749d54614",
+      "name": "Wait Hedge",
+      "webhookId": "9d0486fb-90f1-4cf0-af3c-e9c667ec8f18"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  return {\n    json: {\n      name: item.json.title || item.json.placeName || \"\",\n      website: item.json.website || item.json.url || \"\",\n      email: item.json.email || \"\",\n      address: item.json.address || \"\",\n      phone: item.json.phone || \"\",\n      \n    }\n  }\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -820,
+        -180
+      ],
+      "id": "82acac7f-270c-44f5-baf1-95ab1acd0b9d",
+      "name": "Format Hedge Fund Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  // Extrae el dominio desde el website\n  const url = item.json.website || \"\";\n  let domain = \"\";\n  try {\n    domain = new URL(url).hostname.replace('www.', '');\n  } catch (e) {\n    // fallback si falla el parseo\n    domain = url.replace(/^https?:\\/\\//, '').split('/')[0].replace('www.', '');\n  }\n  return {\n    json: {\n      ...item.json,\n      domain: domain\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        -180
+      ],
+      "id": "9d307e49-25d1-4b81-9f77-84aae27239e3",
+      "name": "Prepare Emails Hedge"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": " https://api.anymailfinder.com/v5.0/search/company.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer "
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"domain\": \"{{ $json.domain }}\"\n}\n\n\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        -180
+      ],
+      "id": "4df6d531-9aad-491f-ac65-36ab6bfb9763",
+      "name": "Anymailfinder → Find Emails - Hedge Funds"
+    },
+    {
+      "parameters": {
+        "model": "sonar",
+        "messages": {
+          "message": [
+            {
+              "content": "=Give me a short summary about the company associated with the domain \"{{ $json[\"input\"][\"domain\"] }}\". List the type of company, country, and any notable recent news. Also, write a first cold outreach email template to one of these emails: {{ $json[\"results\"][\"emails\"].join(\", \") }}.\n"
+            }
+          ]
+        },
+        "options": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.perplexity",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        -180
+      ],
+      "id": "9a78bb6b-719c-45c0-ac7b-19d2624a2569",
+      "name": "Generate Context - Hedge Funds",
+      "credentials": {
+        "perplexityApi": {
+          "id": "",
+          "name": "Perplexity account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert B2B sales copywriter. Write a concise, personalized cold email for partnership outreach to the company described below.\n\nInstructions:\n- Use the contact name provided as{{ $('Scrape Activities – Apify Maps → Scrape Hedge Fund Leads').item.json.title }} \n- Insert our value proposition in Finance and Crypto.\n- Reference something impressive or recent about the company (from the context).\n- Keep it under 120 words.\n- End with a clear call to action for a call/meeting.\n- Sign as Alvaro, Astral Automation.\n\nCompany context:\n{{ $json.choices[0].message.content }}\n\n\n\nContact name:{{ $('Scrape Activities – Apify Maps → Scrape Hedge Fund Leads').item.json.title }}\n\n\nWrite the email in English. Use the variables as shown.\n\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        60,
+        -180
+      ],
+      "id": "158e4ebe-e13d-48c3-85e6-1e84e37c0f2f",
+      "name": "Generate Email Copy - Hedge Funds",
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emailText = $json.message.content;\n\n// Sacar el Subject (puede estar en la primera línea)\nconst subjectMatch = emailText.match(/Subject:(.*)\\n/);\nconst subject = subjectMatch ? subjectMatch[1].trim() : '';\n\n// El mensaje es todo lo que viene después del \"Subject: ...\" y salto de línea\nconst message = emailText.replace(/Subject:.*\\n/, '').trim();\n\nreturn {\n  json: {\n    subject,\n    message\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        436,
+        -180
+      ],
+      "id": "9af5eda6-1d14-41b6-9d3d-91538aee7fd6",
+      "name": "Extract Email Components - Hedge Funds"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.message;\n\n// Si el mensaje original no tiene saltos dobles, los agregamos:\n// - Después de \"Dear ...\", y antes de \"Best regards,\"\nlet formatted = raw\n  .replace(/(Dear [^\\n]+,)/, '$1\\n\\n')  // después del saludo\n  .replace(/([^\\n])(\\s*Best regards,)/, '$1\\n\\n$2') // antes del cierre\n\n// O para HTML (reemplaza \\n por <br> también)\nformatted = formatted.replace(/\\n/g, '<br>');\n\nreturn {\n  json: {\n    message: formatted\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        -180
+      ],
+      "id": "010d43d7-b284-4125-95d6-5179fd3332b8",
+      "name": "Convert Email to HTML - Hedge Funds"
+    },
+    {
+      "parameters": {
+        "subject": "={{ $('Extract Email Components - Hedge Funds').item.json.subject }}",
+        "message": "={{ $json.message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        876,
+        -180
+      ],
+      "id": "800a3786-fb8d-4c89-b0d0-345cac7687df",
+      "name": "Send Email - Hedge Funds",
+      "webhookId": "f3062ab3-71ad-4cd5-a733-87e783a36813",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "=",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2137651684,
+          "mode": "list",
+          "cachedResultName": "HedgeFund",
+          "cachedResultUrl": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Message": "={{ $('Convert Email to HTML - Bank').item.json.message }}",
+            "Subject": "={{ $('Extract Email Components - Bank').item.json.subject }}",
+            "Status": "={{ $json.labelIds[0] }}",
+            "row_number": "2"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Website",
+              "displayName": "Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Message",
+              "displayName": "Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1096,
+        -180
+      ],
+      "id": "ffacaaba-d9fd-4cba-a39f-3751e8eaf412",
+      "name": "Insert to Google Sheet - Hedge Funds",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Start Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Input Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Input Payload": {
+      "main": [
+        [
+          {
+            "node": "Scrape Banks – Apify Maps → Scrape Bank Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Scrape Insurance Companies – Apify Maps → Scrape Insurance Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Scrape Activities – Apify Maps → Scrape Hedge Fund Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Banks": {
+      "main": [
+        [
+          {
+            "node": "Format Bank Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Bank Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare Emails Bank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Emails Bank": {
+      "main": [
+        [
+          {
+            "node": "Anymailfinder → Find Emails - Bank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anymailfinder → Find Emails - Bank": {
+      "main": [
+        [
+          {
+            "node": "Generate Context - Bank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Context - Bank": {
+      "main": [
+        [
+          {
+            "node": "Generate Email Copy - Bank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email Copy - Bank": {
+      "main": [
+        [
+          {
+            "node": "Extract Email Components - Bank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email Components - Bank": {
+      "main": [
+        [
+          {
+            "node": "Convert Email to HTML - Bank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Email to HTML - Bank": {
+      "main": [
+        [
+          {
+            "node": "Send Email - Bank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email - Bank": {
+      "main": [
+        [
+          {
+            "node": "Insert to Google Sheet - Bank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert to Google Sheet - Bank": {
+      "main": [
+        []
+      ]
+    },
+    "Scrape Banks – Apify Maps → Scrape Bank Leads": {
+      "main": [
+        [
+          {
+            "node": "Wait Banks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Insurance Companies – Apify Maps → Scrape Insurance Leads": {
+      "main": [
+        [
+          {
+            "node": "Wait Insurance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Insurance": {
+      "main": [
+        [
+          {
+            "node": "Format Insurance Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Insurance Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare Emails Insurance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Emails Insurance": {
+      "main": [
+        [
+          {
+            "node": "Anymailfinder → Find Emails - Insurance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anymailfinder → Find Emails - Insurance": {
+      "main": [
+        [
+          {
+            "node": "Generate Context - Insurance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Context - Insurance": {
+      "main": [
+        [
+          {
+            "node": "Generate Email Copy - Insurance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email Copy - Insurance": {
+      "main": [
+        [
+          {
+            "node": "Extract Email Components - Insurance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email Components - Insurance": {
+      "main": [
+        [
+          {
+            "node": "Convert Email to HTML - Insurance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Email to HTML - Insurance": {
+      "main": [
+        [
+          {
+            "node": "Send Email - Insurance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email - Insurance": {
+      "main": [
+        [
+          {
+            "node": "Insert to Google Sheet - Insurance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Activities – Apify Maps → Scrape Hedge Fund Leads": {
+      "main": [
+        [
+          {
+            "node": "Wait Hedge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Hedge": {
+      "main": [
+        [
+          {
+            "node": "Format Hedge Fund Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Hedge Fund Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare Emails Hedge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Emails Hedge": {
+      "main": [
+        [
+          {
+            "node": "Anymailfinder → Find Emails - Hedge Funds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anymailfinder → Find Emails - Hedge Funds": {
+      "main": [
+        [
+          {
+            "node": "Generate Context - Hedge Funds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Context - Hedge Funds": {
+      "main": [
+        [
+          {
+            "node": "Generate Email Copy - Hedge Funds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email Copy - Hedge Funds": {
+      "main": [
+        [
+          {
+            "node": "Extract Email Components - Hedge Funds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email Components - Hedge Funds": {
+      "main": [
+        [
+          {
+            "node": "Convert Email to HTML - Hedge Funds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Email to HTML - Hedge Funds": {
+      "main": [
+        [
+          {
+            "node": "Send Email - Hedge Funds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email - Hedge Funds": {
+      "main": [
+        [
+          {
+            "node": "Insert to Google Sheet - Hedge Funds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "253f1d30-2cda-4dcd-88f4-83bb5d8237af",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "13e20c97097a8d1de6d76dbd27c72163b6f6ec6e4a342023f3f77157e413842e"
+  },
+  "id": "3Mxa10SFuxa0hwwH",
+  "tags": []
+}
